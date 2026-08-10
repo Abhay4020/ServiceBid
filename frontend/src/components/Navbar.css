@@ -1,0 +1,161 @@
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10, 14, 26, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.navbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 18px;
+  text-decoration: none;
+  transition: opacity var(--transition);
+}
+.navbar-brand:hover {
+  opacity: 0.85;
+  color: var(--text-primary);
+}
+
+.navbar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--accent-bg);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+}
+
+.navbar-title {
+  letter-spacing: -0.3px;
+}
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Role Badge */
+.navbar-role-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid transparent;
+}
+
+.navbar-role-badge.role-admin {
+  background: var(--purple-bg);
+  color: var(--purple);
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.navbar-role-badge.role-user {
+  background: var(--blue-bg);
+  color: var(--blue);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+/* Logout Button */
+.navbar-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.navbar-logout:hover {
+  background: var(--red-bg);
+  border-color: var(--red-border);
+  color: var(--red);
+  transform: translateY(-1px);
+}
+
+.navbar-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: all var(--transition);
+}
+
+.navbar-link:hover {
+  color: var(--text-primary);
+  background: var(--bg-card);
+}
+
+.navbar-link.active {
+  color: var(--text-accent);
+  background: var(--accent-bg);
+}
+
+.navbar-link.btn-create {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.navbar-link.btn-create:hover {
+  background: var(--accent-hover);
+  color: #fff;
+}
+.navbar-link.btn-create.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-glow);
+}
+
+.navbar-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 600px) {
+  .navbar-title {
+    display: none;
+  }
+  .navbar-link span {
+    display: none;
+  }
+  .navbar-role-badge span {
+    display: none;
+  }
+  .navbar-role-badge {
+    padding: 6px 8px;
+  }
+}

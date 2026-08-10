@@ -1,0 +1,42 @@
+/* MyQuotesPage.css */
+.page-header { display: flex; align-items: center; justify-content: space-between; padding: 28px 0 20px; gap: 16px; }
+.page-header h1 { font-size: 1.6rem; font-weight: 700; color: var(--text-primary); }
+.page-subtitle  { font-size: 0.85rem; color: var(--text-secondary); margin-top: 3px; }
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--accent); color: #fff; padding: 9px 18px;
+  border-radius: var(--radius-md); font-size: 0.87rem; font-weight: 600;
+  border: none; cursor: pointer; text-decoration: none; transition: background var(--transition);
+}
+.btn-primary:hover { background: var(--accent-hover); color: #fff; }
+
+.error-banner { background: var(--red-bg); border: 1px solid var(--red-border); color: var(--red); padding: 12px 16px; border-radius: var(--radius-md); font-size: 0.87rem; margin-bottom: 16px; }
+.skeleton-grid { display: grid; gap: 12px; }
+.skeleton-card { height: 90px; border-radius: var(--radius-lg); }
+
+.quotes-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 40px; }
+.quote-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: var(--bg-card); border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg); padding: 16px 20px; text-decoration: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.quote-card:hover { border-color: var(--border-accent); box-shadow: var(--shadow-sm); }
+.quote-left { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.req-id-small    { font-size: 0.73rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.04em; }
+.quote-req-name  { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+.quote-meta      { display: flex; gap: 14px; font-size: 0.79rem; color: var(--text-muted); }
+
+.quote-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.quote-stats { display: flex; gap: 20px; }
+.q-stat      { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+.q-stat-label { font-size: 0.72rem; color: var(--text-muted); }
+.q-stat-value { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
+.q-stat-value.rank-L1 { color: var(--green); }
+.q-stat-value.rank-L2 { color: var(--blue); }
+.q-stat-value.rank-L3 { color: var(--amber); }
+
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 12px; color: var(--text-muted); text-align: center; }
+.empty-state h3 { font-size: 1.05rem; color: var(--text-secondary); }
+.empty-state p  { font-size: 0.88rem; }
