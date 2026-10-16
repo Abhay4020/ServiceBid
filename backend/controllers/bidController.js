@@ -3,7 +3,11 @@ const { pool } = require("../config/db");
 // ─── POST /api/bid — Place a quote ───────────────────────────────────────────
 const placeBid = async (req, res) => {
   try {
-    const { rfq_id, bid_amount, validity } = req.body;
+    const {
+      rfq_id, bid_amount, validity,
+      carrier_name, freight_charges, origin_charges,
+      destination_charges, transit_time,
+    } = req.body;
     const user_id = req.user.id;
 
     // Validate input
@@ -31,8 +35,8 @@ const placeBid = async (req, res) => {
     const nowResult = await pool.query("SELECT NOW() as current_time");
     const now = new Date(nowResult.rows[0].current_time);
 
-    const bidStartTime  = new Date(rfq.bid_start_time);
-    const bidCloseTime  = new Date(rfq.bid_close_time);
+    const bidStartTime    = new Date(rfq.bid_start_time);
+    const bidCloseTime    = new Date(rfq.bid_close_time);
     const forcedCloseTime = new Date(rfq.forced_close_time);
 
     // Validate timing
@@ -51,15 +55,24 @@ const placeBid = async (req, res) => {
       "SELECT id, bid_amount FROM bids WHERE rfq_id = $1 ORDER BY bid_amount ASC, created_at ASC",
       [rfq_id]
     );
-    const existingBids = existingBidsResult.rows;
+    const existingBids    = existingBidsResult.rows;
     const currentLowestBid = existingBids.length > 0 ? parseFloat(existingBids[0].bid_amount) : null;
     const isNewL1 = currentLowestBid === null || parsedBidAmount < currentLowestBid;
 
-    // Insert quote
+    // Insert quote (with new v3 freight fields)
     const insertResult = await pool.query(
-      `INSERT INTO bids (rfq_id, user_id, bid_amount, validity, created_at)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [rfq_id, user_id, parsedBidAmount, validity || null, now]
+      `INSERT INTO bids (rfq_id, user_id, bid_amount, validity, carrier_name,
+        freight_charges, origin_charges, destination_charges, transit_time, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [
+        rfq_id, user_id, parsedBidAmount, validity || null,
+        carrier_name || null,
+        freight_charges ? parseFloat(freight_charges) : null,
+        origin_charges  ? parseFloat(origin_charges)  : null,
+        destination_charges ? parseFloat(destination_charges) : null,
+        transit_time || null,
+        now,
+      ]
     );
     const newBid = insertResult.rows[0];
 
@@ -71,16 +84,28 @@ const placeBid = async (req, res) => {
       [rfq_id, `Quote placed: ₹${parsedBidAmount} by ${bidderName}${isNewL1 ? " (New L1)" : ""}`, bidderName]
     );
 
-    // ── Extension logic: extend by 5 min if bid arrives within last 5 min ──
-    const triggerWindow    = rfq.trigger_window    || 5;
-    const extensionDuration = rfq.extension_duration || 5;
-    const triggerWindowMs  = triggerWindow * 60000;
-    const triggerStartTime = new Date(bidCloseTime.getTime() - triggerWindowMs);
+    // ── Extension logic ──────────────────────────────────────────────────────
+    const triggerWindow      = rfq.trigger_window      || 5;
+    const extensionDuration  = rfq.extension_duration  || 5;
+    const triggerType        = rfq.trigger_type        || "ANY_BID";
+    const triggerWindowMs    = triggerWindow * 60000;
+    const triggerStartTime   = new Date(bidCloseTime.getTime() - triggerWindowMs);
     const withinTriggerWindow = now >= triggerStartTime;
 
-    let shouldExtend = withinTriggerWindow; // trigger_type is always ANY_BID
-    let updatedRFQ   = rfq;
+    // Determine if we should actually extend based on trigger_type
+    let shouldExtend = false;
+    if (withinTriggerWindow) {
+      if (triggerType === "ANY_BID") {
+        shouldExtend = true;
+      } else if (triggerType === "L1_CHANGE") {
+        shouldExtend = isNewL1;
+      } else if (triggerType === "ANY_RANK_CHANGE") {
+        // A rank change always occurs when a new bid is placed
+        shouldExtend = true;
+      }
+    }
 
+    let updatedRFQ = rfq;
     if (shouldExtend) {
       let newBidCloseTime = new Date(bidCloseTime.getTime() + extensionDuration * 60000);
       if (newBidCloseTime > forcedCloseTime) {
@@ -95,7 +120,8 @@ const placeBid = async (req, res) => {
       await pool.query(
         `INSERT INTO rfq_audit (rfq_id, action, old_bid_close_time, new_bid_close_time, changed_by, changed_at)
          VALUES ($1, $2, $3, $4, $5, NOW())`,
-        [rfq_id, `Deadline extended by ${extensionDuration} min (quote received in last ${triggerWindow} min)`,
+        [rfq_id,
+         `Deadline extended by ${extensionDuration} min (trigger: ${triggerType}, quote in last ${triggerWindow} min)`,
          bidCloseTime, newBidCloseTime, "system"]
       );
     }
@@ -103,6 +129,8 @@ const placeBid = async (req, res) => {
     // Updated rankings
     const rankingsResult = await pool.query(
       `SELECT b.id, b.bid_amount, b.validity, b.created_at, b.user_id,
+              b.carrier_name, b.freight_charges, b.origin_charges,
+              b.destination_charges, b.transit_time,
               u.name as bidder_name
        FROM bids b
        LEFT JOIN users u ON b.user_id = u.id
@@ -112,20 +140,25 @@ const placeBid = async (req, res) => {
     );
 
     const rankings = rankingsResult.rows.map((bid, index) => ({
-      rank:        `L${index + 1}`,
-      bid_id:      bid.id,
-      user_id:     bid.user_id,
-      bid_amount:  parseFloat(bid.bid_amount),
-      bidder_name: bid.bidder_name,
-      validity:    bid.validity,
-      placed_at:   bid.created_at,
+      rank:                `L${index + 1}`,
+      bid_id:              bid.id,
+      user_id:             bid.user_id,
+      bid_amount:          parseFloat(bid.bid_amount),
+      bidder_name:         bid.bidder_name,
+      validity:            bid.validity,
+      carrier_name:        bid.carrier_name,
+      freight_charges:     bid.freight_charges ? parseFloat(bid.freight_charges) : null,
+      origin_charges:      bid.origin_charges  ? parseFloat(bid.origin_charges)  : null,
+      destination_charges: bid.destination_charges ? parseFloat(bid.destination_charges) : null,
+      transit_time:        bid.transit_time,
+      placed_at:           bid.created_at,
     }));
 
     const newBidRank = rankings.find((r) => r.bid_id === newBid.id);
 
-    return res.status(200).json({
+    const responsePayload = {
       success: true,
-      message: shouldExtend ? "Quote placed and deadline extended by 5 minutes" : "Quote placed successfully",
+      message: shouldExtend ? `Quote placed and deadline extended by ${extensionDuration} minutes` : "Quote placed successfully",
       data: {
         bid: {
           id:         newBid.id,
@@ -141,8 +174,30 @@ const placeBid = async (req, res) => {
             }
           : { extended: false },
         rankings,
+        lowest_bid: rankings.length > 0 ? rankings[0].bid_amount : null,
+        bid_close_time: updatedRFQ.bid_close_time,
       },
-    });
+    };
+
+    // ── Real-time broadcast via Socket.IO ────────────────────────────────────
+    if (req.io) {
+      req.io.to(`rfq_${rfq_id}`).emit("bid_update", {
+        rfq_id:        parseInt(rfq_id),
+        rankings,
+        lowest_bid:    rankings.length > 0 ? rankings[0].bid_amount : null,
+        bid_close_time: updatedRFQ.bid_close_time,
+        extension:     responsePayload.data.extension,
+        new_bid: {
+          id:          newBid.id,
+          bid_amount:  parsedBidAmount,
+          bidder_name: bidderName,
+          rank:        newBidRank ? newBidRank.rank : "L1",
+          is_l1:       isNewL1,
+        },
+      });
+    }
+
+    return res.status(200).json(responsePayload);
   } catch (error) {
     console.error("Error placing quote:", error.message);
     res.status(500).json({ success: false, message: "Failed to place quote.", error: error.message });
@@ -154,6 +209,8 @@ const getMyBids = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT b.id, b.rfq_id, b.bid_amount, b.validity, b.created_at,
+              b.carrier_name, b.freight_charges, b.origin_charges,
+              b.destination_charges, b.transit_time,
               r.name as requirement_name,
               r.bid_start_time, r.bid_close_time, r.forced_close_time,
               NOW() as db_now,
@@ -177,14 +234,17 @@ const getMyBids = async (req, res) => {
       const close  = new Date(bid.bid_close_time);
       const start  = new Date(bid.bid_start_time);
       let req_status;
-      if (dbNow >= forced)  req_status = "Force Closed";
-      else if (dbNow >= close) req_status = "Closed";
-      else if (dbNow >= start) req_status = "Active";
-      else req_status = "Upcoming";
+      if (dbNow >= forced)       req_status = "Force Closed";
+      else if (dbNow >= close)   req_status = "Closed";
+      else if (dbNow >= start)   req_status = "Active";
+      else                       req_status = "Upcoming";
 
       return {
         ...bid,
         bid_amount:          parseFloat(bid.bid_amount),
+        freight_charges:     bid.freight_charges     ? parseFloat(bid.freight_charges)     : null,
+        origin_charges:      bid.origin_charges      ? parseFloat(bid.origin_charges)      : null,
+        destination_charges: bid.destination_charges ? parseFloat(bid.destination_charges) : null,
         rank:                `L${bid.rank_position}`,
         requirement_status:  req_status,
       };

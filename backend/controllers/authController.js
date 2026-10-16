@@ -1,8 +1,8 @@
 const { pool } = require("../config/db");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+const jwt    = require("jsonwebtoken");
 
-const JWT_SECRET = process.env.JWT_SECRET || "servicebid_jwt_secret_key";
+const JWT_SECRET    = process.env.JWT_SECRET    || "servicebid_jwt_secret_key";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "8h";
 
 // ─── Seed default admin on startup ───────────────────────────────────────────
@@ -46,13 +46,13 @@ const register = async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
-      `INSERT INTO users (name, email, password, role)
-       VALUES ($1, $2, $3, 'user')
+      `INSERT INTO users (name, email, password, role, auth_provider)
+       VALUES ($1, $2, $3, 'user', 'local')
        RETURNING id, name, email, role, created_at`,
       [name.trim(), email.toLowerCase().trim(), hashed]
     );
 
-    const user = rows[0];
+    const user  = rows[0];
     const token = generateToken(user);
     res.status(201).json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
@@ -77,14 +77,14 @@ const login = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid email or password." });
 
     if (!user.password)
-      return res.status(400).json({ success: false, message: "No password set for this account." });
+      return res.status(400).json({ success: false, message: "This account uses Google sign-in. Please sign in with Google." });
 
     const match = await bcrypt.compare(password, user.password);
     if (!match)
       return res.status(401).json({ success: false, message: "Invalid email or password." });
 
     const token = generateToken(user);
-    res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar_url: user.avatar_url } });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ success: false, message: "Server error during login." });
@@ -95,7 +95,7 @@ const login = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const { rows } = await pool.query(
-      "SELECT id, name, email, role, is_active, created_at FROM users WHERE id = $1",
+      "SELECT id, name, email, role, is_active, avatar_url, auth_provider, created_at FROM users WHERE id = $1",
       [req.user.id]
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: "User not found." });
@@ -105,11 +105,56 @@ const getMe = async (req, res) => {
   }
 };
 
+// ─── Google OAuth callback ────────────────────────────────────────────────────
+// Called after passport.authenticate("google") succeeds.
+// Upserts the user and issues a JWT, then redirects to the frontend with the token.
+const googleCallback = async (googleProfile) => {
+  // googleProfile = { id, displayName, emails, photos }
+  const googleId  = googleProfile.id;
+  const email     = googleProfile.emails?.[0]?.value || null;
+  const name      = googleProfile.displayName || "Google User";
+  const avatarUrl = googleProfile.photos?.[0]?.value || null;
+
+  if (!email) throw new Error("Google account has no public email.");
+
+  // Upsert: find by google_id OR email, then update google fields
+  let { rows } = await pool.query("SELECT * FROM users WHERE google_id = $1", [googleId]);
+
+  if (rows.length === 0) {
+    // Try matching existing email-based account to link it
+    ({ rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]));
+    if (rows.length > 0) {
+      // Link Google account to existing local account
+      await pool.query(
+        "UPDATE users SET google_id = $1, avatar_url = $2, auth_provider = 'google', updated_at = NOW() WHERE id = $3",
+        [googleId, avatarUrl, rows[0].id]
+      );
+      rows[0].google_id = googleId;
+      rows[0].avatar_url = avatarUrl;
+    } else {
+      // New user via Google
+      ({ rows } = await pool.query(
+        `INSERT INTO users (name, email, google_id, avatar_url, role, auth_provider)
+         VALUES ($1, $2, $3, $4, 'user', 'google')
+         RETURNING *`,
+        [name, email, googleId, avatarUrl]
+      ));
+    }
+  } else if (avatarUrl && rows[0].avatar_url !== avatarUrl) {
+    await pool.query("UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2", [avatarUrl, rows[0].id]);
+    rows[0].avatar_url = avatarUrl;
+  }
+
+  const user  = rows[0];
+  const token = generateToken(user);
+  return { token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar_url: user.avatar_url } };
+};
+
 // ─── GET /api/users (admin only) ─────────────────────────────────────────────
 const getAllUsers = async (req, res) => {
   try {
     const { rows } = await pool.query(
-      "SELECT id, name, email, role, is_active, created_at FROM users ORDER BY created_at DESC"
+      "SELECT id, name, email, role, is_active, auth_provider, avatar_url, created_at FROM users ORDER BY created_at DESC"
     );
     res.json({ success: true, users: rows });
   } catch (err) {
@@ -132,8 +177,8 @@ const createUser = async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
-      `INSERT INTO users (name, email, password, role)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (name, email, password, role, auth_provider)
+       VALUES ($1, $2, $3, $4, 'local')
        RETURNING id, name, email, role, is_active, created_at`,
       [name.trim(), email.toLowerCase().trim(), hashed, role]
     );
@@ -154,9 +199,9 @@ const updateUser = async (req, res) => {
     const values = [];
     let idx = 1;
 
-    if (name !== undefined)      { fields.push(`name = $${idx++}`);      values.push(name.trim()); }
-    if (email !== undefined)     { fields.push(`email = $${idx++}`);     values.push(email.toLowerCase().trim()); }
-    if (role !== undefined)      { fields.push(`role = $${idx++}`);      values.push(role); }
+    if (name      !== undefined) { fields.push(`name = $${idx++}`);      values.push(name.trim()); }
+    if (email     !== undefined) { fields.push(`email = $${idx++}`);     values.push(email.toLowerCase().trim()); }
+    if (role      !== undefined) { fields.push(`role = $${idx++}`);      values.push(role); }
     if (is_active !== undefined) { fields.push(`is_active = $${idx++}`); values.push(is_active); }
     if (password) {
       const hashed = await bcrypt.hash(password, 10);
@@ -198,4 +243,4 @@ const deleteUser = async (req, res) => {
   }
 };
 
-module.exports = { login, register, getMe, getAllUsers, createUser, updateUser, deleteUser };
+module.exports = { login, register, getMe, getAllUsers, createUser, updateUser, deleteUser, googleCallback };
