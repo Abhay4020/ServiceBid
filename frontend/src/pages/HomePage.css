@@ -110,3 +110,64 @@
 }
 .empty-state h3 { font-size: 1.05rem; color: var(--text-secondary); }
 .empty-state p  { font-size: 0.88rem; }
+
+/* Category filter select */
+.controls-row {
+  display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 16px;
+}
+.category-filter-select {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 0.87rem;
+  cursor: pointer;
+  transition: border var(--transition);
+}
+.category-filter-select:focus { border-color: var(--accent); outline: none; }
+.category-filter-select option { background: #1e293b; }
+
+/* Category pill on card */
+.req-category {
+  display: inline-block;
+  font-size: 0.7rem; font-weight: 600;
+  background: rgba(99,102,241,0.12); color: #a5b4fc;
+  border: 1px solid rgba(99,102,241,0.22);
+  border-radius: 5px; padding: 1px 7px;
+  margin-bottom: 6px;
+}
+
+/* ── Pagination bar ─────────────────────────────────────────────────────────── */
+.pagination-bar {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; padding: 24px 0 40px; flex-wrap: wrap;
+}
+.pg-btn {
+  background: var(--bg-card); border: 1px solid var(--border-primary);
+  color: var(--text-secondary); padding: 7px 14px;
+  border-radius: var(--radius-md); font-size: 0.84rem; cursor: pointer;
+  transition: all var(--transition);
+}
+.pg-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
+.pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.pg-pages { display: flex; align-items: center; gap: 4px; }
+
+.pg-num {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-card); border: 1px solid var(--border-primary);
+  color: var(--text-secondary); border-radius: var(--radius-md);
+  font-size: 0.84rem; cursor: pointer; transition: all var(--transition);
+}
+.pg-num:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
+.pg-num.pg-active {
+  background: var(--accent-bg); border-color: var(--accent);
+  color: var(--accent); font-weight: 700;
+}
+.pg-ellipsis { color: var(--text-muted); padding: 0 4px; font-size: 0.84rem; }
+
+.pg-info { font-size: 0.78rem; color: var(--text-muted); margin-left: 8px; }
+

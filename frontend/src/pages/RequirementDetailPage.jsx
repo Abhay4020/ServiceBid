@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { getRFQById, placeBid, deleteRFQ, forceCloseRFQ } from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import { useRFQSocket } from '../hooks/useRFQSocket'
 import StatusBadge from '../components/StatusBadge'
 import './RequirementDetailPage.css'
 
@@ -10,18 +11,20 @@ function RequirementDetailPage() {
   const navigate = useNavigate()
   const { user, isAdmin } = useAuth()
 
-  const [data, setData]         = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
+  const [data, setData]           = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(null)
   const [activeTab, setActiveTab] = useState('quotes')
+  const [liveFlash, setLiveFlash] = useState(false)   // brief highlight on real-time update
 
-  const [bidAmount, setBidAmount] = useState('')
-  const [validity, setValidity]   = useState('')
+  const [bidAmount, setBidAmount]   = useState('')
+  const [validity, setValidity]     = useState('')
   const [bidLoading, setBidLoading] = useState(false)
   const [bidResult, setBidResult]   = useState(null)
   const [bidError, setBidError]     = useState(null)
 
-  const fetchData = async () => {
+  // ── Fetch data from REST API ──────────────────────────────────────────────
+  const fetchData = useCallback(async () => {
     try {
       const res = await getRFQById(id)
       setData(res.data)
@@ -31,10 +34,34 @@ function RequirementDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
-  useEffect(() => { fetchData() }, [id])
+  useEffect(() => { fetchData() }, [fetchData])
 
+  // ── Real-time Socket.IO updates ──────────────────────────────────────────
+  useRFQSocket(id, {
+    onBidUpdate: (payload) => {
+      setData((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          rfq: {
+            ...prev.rfq,
+            bid_close_time: payload.bid_close_time || prev.rfq.bid_close_time,
+          },
+          rankings: payload.rankings,
+        }
+      })
+      // Flash the quotes panel
+      setLiveFlash(true)
+      setTimeout(() => setLiveFlash(false), 1200)
+    },
+    onForceClosed: () => {
+      fetchData() // re-fetch to get updated status
+    },
+  })
+
+  // ── Admin actions ─────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!window.confirm('Permanently delete this requirement?')) return
     try {
@@ -55,6 +82,7 @@ function RequirementDetailPage() {
     }
   }
 
+  // ── Place bid ─────────────────────────────────────────────────────────────
   const handlePlaceBid = async (e) => {
     e.preventDefault()
     setBidError(null); setBidResult(null)
@@ -65,7 +93,7 @@ function RequirementDetailPage() {
       const res = await placeBid({ rfq_id: parseInt(id), bid_amount: amount, validity })
       setBidResult(res)
       setBidAmount(''); setValidity('')
-      fetchData()
+      // Note: socket will update rankings automatically; fetchData() is a safety fallback
     } catch (err) {
       setBidError(err.response?.data?.message || 'Failed to place quote.')
     } finally {
@@ -104,6 +132,14 @@ function RequirementDetailPage() {
           <div className="detail-id-row">
             <span className="detail-rfq-id">REQ-{String(rfq.id).padStart(4, '0')}</span>
             <StatusBadge status={rfq.status} />
+            {rfq.category_name && <span className="category-tag">{rfq.category_name}</span>}
+            {/* Live indicator dot */}
+            {isActive && (
+              <span className="live-dot" title="Live — updates in real time">
+                <span className="live-pulse" />
+                LIVE
+              </span>
+            )}
           </div>
           <h1 className="detail-name">{rfq.name}</h1>
           <div className="detail-poster-row">
@@ -174,7 +210,7 @@ function RequirementDetailPage() {
           </div>
 
           {activeTab === 'quotes' && (
-            <div className="tab-content">
+            <div className={`tab-content ${liveFlash ? 'live-flash' : ''}`}>
               {rankings.length === 0 ? (
                 <div className="empty-tab"><p>No quotes yet. Be the first to quote!</p></div>
               ) : (
@@ -184,10 +220,17 @@ function RequirementDetailPage() {
                       <span className={`rank-badge ${i < 3 ? `rank-l${i + 1}` : ''}`}>{r.rank}</span>
                       <div className="ranking-info">
                         <span className="ranking-bidder">{r.bidder_name || 'Anonymous'}</span>
+                        {r.carrier_name && <span className="ranking-validity">Carrier: {r.carrier_name}</span>}
                         {r.validity && <span className="ranking-validity">Valid: {r.validity}</span>}
+                        {r.transit_time && <span className="ranking-validity">Transit: {r.transit_time}</span>}
                         <span className="ranking-time">{fmt(r.placed_at)}</span>
                       </div>
-                      <span className="ranking-amount">{fmtC(r.bid_amount)}</span>
+                      <div className="ranking-right">
+                        <span className="ranking-amount">{fmtC(r.bid_amount)}</span>
+                        {r.freight_charges != null && (
+                          <span className="ranking-freight">+₹{r.freight_charges.toLocaleString('en-IN')} freight</span>
+                        )}
+                      </div>
                       {r.user_id === user?.id && <span className="your-bid-tag">You</span>}
                     </div>
                   ))}
@@ -262,6 +305,29 @@ function RequirementDetailPage() {
               </div>
             )}
             {bidError && <div className="bid-error-msg">{bidError}</div>}
+          </div>
+
+          {/* Extension config info card */}
+          <div className="ext-info-card">
+            <div className="ext-info-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Extension Config
+            </div>
+            <div className="ext-info-row">
+              <span>Trigger</span>
+              <strong>{rfq.trigger_type || 'ANY_BID'}</strong>
+            </div>
+            <div className="ext-info-row">
+              <span>Window</span>
+              <strong>{rfq.trigger_window || 5} min</strong>
+            </div>
+            <div className="ext-info-row">
+              <span>Duration</span>
+              <strong>+{rfq.extension_duration || 5} min</strong>
+            </div>
           </div>
         </div>
       </div>

@@ -9,6 +9,7 @@ import PostRequirementPage from './pages/PostRequirementPage'
 import AdminPage from './pages/AdminPage'
 import MyRequirementsPage from './pages/MyRequirementsPage'
 import MyQuotesPage from './pages/MyQuotesPage'
+import GoogleAuthCallback from './pages/GoogleAuthCallback'
 import './App.css'
 
 function ProtectedRoute({ children }) {
@@ -41,6 +42,8 @@ function App() {
           <Route path="/my-requirements"   element={<ProtectedRoute><MyRequirementsPage /></ProtectedRoute>} />
           <Route path="/my-quotes"         element={<ProtectedRoute><MyQuotesPage /></ProtectedRoute>} />
           <Route path="/admin"             element={<AdminRoute><AdminPage /></AdminRoute>} />
+
+          <Route path="/auth/callback"   element={<GoogleAuthCallback />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -28,7 +28,11 @@ api.interceptors.response.use(
   }
 )
 
+// ── Categories ────────────────────────────────────────────────────────────────
+export const getCategories = async () => (await api.get('/api/categories')).data
+
 // ── Requirements (RFQ) ────────────────────────────────────────────────────────
+// params: { page, limit, search, category_id }
 export const getRFQs       = async (params = {}) => (await api.get('/api/rfqs', { params })).data
 export const getMyRFQs     = async ()             => (await api.get('/api/rfqs/mine')).data
 export const getRFQById    = async (id)            => (await api.get(`/api/rfq/${id}`)).data

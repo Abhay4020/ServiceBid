@@ -57,7 +57,7 @@ export function AuthProvider({ children }) {
   const isUser  = user?.role === 'user'
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isAdmin, isUser }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, saveAuth, isAdmin, isUser }}>
       {children}
     </AuthContext.Provider>
   )

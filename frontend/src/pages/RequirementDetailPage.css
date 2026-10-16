@@ -120,3 +120,63 @@
 .error-page p  { color: var(--text-secondary); font-size: 0.9rem; }
 
 @media (max-width: 768px) { .detail-grid { grid-template-columns: 1fr; } .stats-bar { gap: 16px; } .stats-item { padding: 0; } .stats-divider { display: none; } }
+
+/* ── Live indicator ─────────────────────────────────────────────────────────── */
+.live-dot {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+  color: #4ade80; background: rgba(74,222,128,0.1);
+  border: 1px solid rgba(74,222,128,0.3);
+  padding: 2px 8px; border-radius: 99px;
+}
+.live-pulse {
+  display: inline-block; width: 7px; height: 7px;
+  background: #4ade80; border-radius: 50%;
+  animation: pulse-ring 1.4s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0%   { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+  70%  { transform: scale(1);   box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+  100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+}
+
+/* ── Live-flash on rankings update ─────────────────────────────────────────── */
+.live-flash {
+  animation: flash-bg 1.2s ease-out;
+}
+@keyframes flash-bg {
+  0%   { background: rgba(99,102,241,0.18); }
+  100% { background: var(--bg-card); }
+}
+
+/* ── Category tag ───────────────────────────────────────────────────────────── */
+.category-tag {
+  font-size: 0.73rem; font-weight: 600; padding: 2px 8px;
+  border-radius: 6px; background: rgba(99,102,241,0.12);
+  color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);
+}
+
+/* ── Ranking right column (amount + freight) ────────────────────────────────── */
+.ranking-right {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0;
+}
+.ranking-freight {
+  font-size: 0.73rem; color: var(--text-muted);
+}
+
+/* ── Extension info card ────────────────────────────────────────────────────── */
+.ext-info-card {
+  background: var(--bg-card); border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg); padding: 14px 16px;
+  margin-top: 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.ext-info-title {
+  font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 6px; margin-bottom: 2px;
+}
+.ext-info-row {
+  display: flex; justify-content: space-between;
+  font-size: 0.8rem; color: var(--text-muted);
+}
+.ext-info-row strong { color: var(--text-primary); }
+
